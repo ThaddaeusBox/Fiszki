@@ -11,16 +11,40 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>Fiszki</title>
 <style>
-:root{--bg:#f2f2f2;--box:#fff;--text:#000;--card:#e3f2fd;--accent:#2563eb}
-body.dark{--bg:#121212;--box:#1e1e1e;--text:#fff;--card:#263238}
+:root{--bg:#f2f2f2;--box:#fff;--text:#000;--card:#e3f2fd;--accent:#2563eb;--muted:#6b7280}
+body.dark{--bg:#121212;--box:#1e1e1e;--text:#fff;--card:#263238;--muted:#9ca3af}
 *{box-sizing:border-box}
-body{font-family:Arial,sans-serif;background:var(--bg);color:var(--text);margin:0;padding: max(12px,env(safe-area-inset-top)) 12px max(18px,env(safe-area-inset-bottom));transition:.3s}
+body{font-family:Arial,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:max(12px,env(safe-area-inset-top)) 12px max(18px,env(safe-area-inset-bottom));transition:.3s}
 .container{width:100%;max-width:700px;margin:auto;background:var(--box);padding:clamp(14px,4vw,22px);border-radius:12px}
 h1{text-align:center;font-size:clamp(25px,7vw,32px);margin:12px 0 18px}
+h2{font-size:19px;margin:24px 0 8px}
 select,input:not([type=file]),button{font:inherit;padding:12px;margin:5px 0;width:100%;background:var(--box);color:var(--text);border:1px solid #888;border-radius:8px;min-height:44px}
 input[type=file]{width:100%;margin:8px 0}
 button{cursor:pointer;touch-action:manipulation}
 button:active{opacity:.75}
+button:disabled{opacity:.5;cursor:default}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:bold}
+button.danger{border-color:#dc2626;color:#dc2626}
+.hidden{display:none!important}
+.center{text-align:center}
+.muted{color:var(--muted);font-size:14px}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.topbar>div{display:flex;gap:6px}
+.topbar button{width:auto;min-width:44px;padding:8px 12px;margin:0}
+.topbar .who{font-weight:bold;overflow-wrap:anywhere}
+.tabs{display:flex;gap:8px;margin-bottom:6px}
+.tabs button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.msg{color:#dc2626;font-size:14px;min-height:20px;margin:6px 0}
+.tile{display:block;text-align:left;padding:14px 16px;margin:8px 0;background:var(--card);border:none;border-radius:12px}
+.tile strong{font-size:18px;margin-right:8px;overflow-wrap:anywhere}
+.tile .muted{margin-top:4px}
+.badge{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;background:var(--accent);color:#fff;vertical-align:middle}
+.row{display:flex;gap:8px;align-items:center}
+.row input{flex:1;min-width:0}
+.row button{width:auto;min-width:96px}
+.code-box{font-family:monospace;font-size:clamp(22px,7vw,30px);letter-spacing:3px;text-align:center;background:var(--card);border-radius:12px;padding:16px;margin:8px 0;user-select:all}
+.setup{line-height:1.5}
+.setup code{background:#8882;padding:1px 5px;border-radius:4px}
 .flashcard{margin:18px 0;padding:24px 16px;background:var(--card);border-radius:12px;text-align:center;font-size:22px;cursor:pointer;min-height:150px;display:flex;flex-direction:column;justify-content:center;align-items:center;overflow-wrap:anywhere}
 .flashcard img{max-height:260px;object-fit:contain}
 .controls{display:flex;gap:10px}
@@ -28,19 +52,77 @@ button:active{opacity:.75}
 .list{margin-top:20px}
 .list-item{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#8882;padding:8px;margin:6px 0;border-radius:8px;overflow-wrap:anywhere}
 .list-item>div{display:flex;gap:4px;flex-shrink:0}
-.list-item button{width:auto;min-width:42px;padding:8px}
-.toggle{text-align:right}
+.list-item button{width:auto;min-width:42px;padding:8px;margin:0}
 .category-row{display:flex;gap:8px;align-items:center}
 .category-row select{flex:1;min-width:0}
 .icon-button{width:auto!important;min-width:48px!important;padding:10px!important;font-size:22px!important}
 .controls .icon-button{flex:1}
+#toast{position:fixed;left:50%;bottom:max(20px,env(safe-area-inset-bottom));transform:translateX(-50%);background:#111;color:#fff;padding:10px 16px;border-radius:99px;font-size:14px;z-index:10;max-width:90vw;text-align:center}
 @media(max-width:480px){.controls{gap:7px}.controls button{font-size:14px;padding:10px 5px}.flashcard{font-size:20px;min-height:170px}.list-item{font-size:14px}.list-item button{min-width:36px}}
 </style>
 </head>
 <body>
 <div class="container">
-    <div class="toggle"><button onclick="toggleDark()">🌙 / ☀</button></div>
+
+  <div class="topbar">
+    <span class="who" id="whoami"></span>
+    <div>
+      <button onclick="toggleDark()" aria-label="Tryb ciemny">🌙 / ☀</button>
+      <button id="logoutBtn" class="hidden" onclick="logout()">Wyloguj</button>
+    </div>
+  </div>
+
+  <!-- ===== BRAK KONFIGURACJI ===== -->
+  <div id="setupView" class="hidden setup">
+    <h1>⚙️ Wymagana konfiguracja</h1>
+    <p>Aplikacja nie jest jeszcze połączona z bazą danych. Otwórz plik <code>index.html</code> i na samej górze skryptu wpisz swoje dane z Supabase (<code>SUPABASE_URL</code> oraz <code>SUPABASE_KEY</code>). Instrukcja jest w opisie od Claude'a.</p>
+  </div>
+
+  <!-- ===== LOGOWANIE ===== -->
+  <div id="authView" class="hidden">
     <h1>📚 Fiszki</h1>
+    <div class="tabs">
+      <button id="tabLogin" class="active" onclick="setAuthMode('login')">Logowanie</button>
+      <button id="tabRegister" onclick="setAuthMode('register')">Rejestracja</button>
+    </div>
+    <input id="nickInput" placeholder="Nick" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false">
+    <input id="passInput" type="password" placeholder="Hasło" autocomplete="current-password">
+    <input id="pass2Input" type="password" placeholder="Powtórz hasło" autocomplete="new-password" class="hidden">
+    <div class="msg" id="authMsg"></div>
+    <button id="authBtn" class="primary" onclick="submitAuth()">Zaloguj się</button>
+    <p class="muted center" id="authHint"></p>
+  </div>
+
+  <!-- ===== STRONA GŁÓWNA ===== -->
+  <div id="homeView" class="hidden">
+    <h1>📚 Fiszki</h1>
+    <p class="muted center">Twoja przestrzeń do nauki</p>
+
+    <button class="tile" onclick="openPrivate()">
+      <strong>🔒 Moje prywatne fiszki</strong>
+      <div class="muted">Zestawy widoczne tylko dla Ciebie.</div>
+    </button>
+
+    <h2>👥 Moje grupy</h2>
+    <div id="groupList"></div>
+
+    <div class="row">
+      <input id="newGroupName" placeholder="Nazwa nowej grupy" maxlength="40">
+      <button onclick="createGroup()">Utwórz</button>
+    </div>
+    <div class="row">
+      <input id="joinCode" placeholder="Kod grupy, np. ABCDE-23456" autocapitalize="characters" autocorrect="off" spellcheck="false">
+      <button onclick="joinGroup()">Dołącz</button>
+    </div>
+  </div>
+
+  <!-- ===== FISZKI (prywatne albo grupowe) ===== -->
+  <div id="spaceView" class="hidden">
+    <div class="controls">
+      <button onclick="goHome()">← Strona główna</button>
+      <button id="groupBtn" class="hidden" onclick="openGroupSettings()">⚙️ Członkowie i kod</button>
+    </div>
+    <h1 id="spaceTitle"></h1>
 
     <div style="margin:15px 0;text-align:center">
       <label for="sideMode">Tryb wyświetlania fiszek:</label>
@@ -55,13 +137,14 @@ button:active{opacity:.75}
     <div class="controls">
       <button onclick="exportBackup()">📥 Eksportuj</button>
       <button onclick="document.getElementById('backupInput').click()">📤 Importuj</button>
+      <button onclick="refreshSpace()" aria-label="Odśwież" title="Odśwież">🔄</button>
     </div>
     <input type="file" id="backupInput" accept=".json,application/json" style="display:none" onchange="importBackup(event)">
 
     <input id="categoryInput" placeholder="Nowa kategoria">
     <button onclick="addCategory()">Dodaj kategorię</button>
     <div class="category-row">
-      <select id="categorySelect" onchange="loadCategory()" aria-label="Wybierz kategorię"></select>
+      <select id="categorySelect" onchange="onCategoryChange()" aria-label="Wybierz kategorię"></select>
       <button class="icon-button" onclick="deleteCategory()" aria-label="Usuń całą kategorię" title="Usuń całą kategorię">🗑️</button>
     </div>
 
@@ -69,9 +152,11 @@ button:active{opacity:.75}
     <input type="file" id="frontImage" accept="image/*">
     <input id="backInput" placeholder="Tył fiszki">
     <input type="file" id="backImage" accept="image/*">
-    <button onclick="addFlashcard()">Dodaj fiszkę</button>
+    <div class="muted hidden" id="editHint">Edytujesz fiszkę. Zdjęcia zostaną bez zmian, jeśli nie wybierzesz nowych.</div>
+    <button id="saveCardBtn" onclick="saveCard()">Dodaj fiszkę</button>
+    <button id="cancelEditBtn" class="hidden" onclick="cancelEdit()">Anuluj edycję</button>
 
-    <div class="flashcard" onclick="flipCard()" id="flashcard">Kliknij, aby rozpocząć</div>
+    <div class="flashcard" onclick="flipCard()" id="flashcard">Ładowanie…</div>
 
     <div class="controls">
       <button class="icon-button" onclick="nextCard()" aria-label="Następna fiszka" title="Następna fiszka">➡️</button>
@@ -82,145 +167,495 @@ button:active{opacity:.75}
       <button class="icon-button" onclick="markKnown(false)" aria-label="Nie wiedziałem" title="Nie wiedziałem">👎</button>
     </div>
     <div class="list" id="list"></div>
+  </div>
+
+  <!-- ===== USTAWIENIA GRUPY ===== -->
+  <div id="groupView" class="hidden">
+    <button onclick="backToSpace()">← Wróć do fiszek</button>
+    <h1 id="gName"></h1>
+    <div class="muted center">Kod grupy – przekaż go znajomym, żeby mogli dołączyć:</div>
+    <div class="code-box" id="gCode"></div>
+    <div class="controls">
+      <button onclick="copyCode()">📋 Kopiuj kod</button>
+      <button id="regenBtn" onclick="regenCode()">🔄 Zmień kod</button>
+    </div>
+    <p class="muted" id="regenHint">Po zmianie kodu stary przestaje działać. Obecni członkowie zostają w grupie.</p>
+
+    <h2>Członkowie</h2>
+    <div id="memberList"></div>
+
+    <button id="leaveBtn" class="danger" onclick="leaveGroup()">🚪 Opuść grupę</button>
+    <button id="deleteGroupBtn" class="danger" onclick="deleteGroup()">🗑️ Usuń grupę wraz z fiszkami</button>
+  </div>
+
 </div>
+<div id="toast" class="hidden"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
-let data = {};
-try { data = JSON.parse(localStorage.getItem("fiszki")) || {}; } catch(e) { data = {}; }
-let currentCategory=null, deck=[], index=0, flipped=false, editIndex=null, roundFinished=false, knownCount=0, unknownCount=0;
-let sideMode=localStorage.getItem("sideMode") || "random";
-document.getElementById("sideMode").value=sideMode;
+/* ============ KONFIGURACJA – wpisz swoje dane z Supabase ============ */
+const SUPABASE_URL = "https://TWOJ-PROJEKT.supabase.co";
+const SUPABASE_KEY = "TWOJ-KLUCZ-PUBLISHABLE-LUB-ANON";
+// Nick jest zamieniany na techniczny adres "nick@EMAIL_DOMAIN" (nikt nie dostaje żadnej wiadomości).
+const EMAIL_DOMAIN = "fiszki.app";
+/* ==================================================================== */
 
-if(localStorage.getItem("dark")==="true") document.body.classList.add("dark");
+const $ = id => document.getElementById(id);
+const configured = !SUPABASE_URL.includes("TWOJ-") && !SUPABASE_KEY.includes("TWOJ-");
+
+let sb = null, user = null;
+let space = {type: "private", group: null};
+let groupsCache = [];
+let cats = [];            // [{id,name,cards:[{id,front,back,image_front,image_back}]}]
+let skip = {};            // card_id -> pozostałe rundy pominięcia
+let currentCatId = null;
+let deck = [], index = 0, flipped = false, roundFinished = false, allKnown = false;
+let knownCount = 0, unknownCount = 0, editCardId = null;
+let sideMode = localStorage.getItem("sideMode") || "random";
+$("sideMode").value = sideMode;
+
+/* ---------- pomocnicze ---------- */
+if (localStorage.getItem("dark") === "true") document.body.classList.add("dark");
 function toggleDark(){document.body.classList.toggle("dark");localStorage.setItem("dark",document.body.classList.contains("dark"))}
-function save(){localStorage.setItem("fiszki",JSON.stringify(data))}
-function changeSideMode(){sideMode=document.getElementById("sideMode").value;localStorage.setItem("sideMode",sideMode);resetDeck()}
+function show(name){
+  ["setupView","authView","homeView","spaceView","groupView"].forEach(v=>$(v).classList.toggle("hidden",v!==name));
+  window.scrollTo(0,0);
+}
+let toastTimer;
+function toast(msg){const t=$("toast");t.textContent=msg;t.classList.remove("hidden");clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.add("hidden"),2600)}
+function plural(n,one,few,many){const m10=n%10,m100=n%100;if(n===1)return one;if(m10>=2&&m10<=4&&!(m100>=12&&m100<=14))return few;return many}
+function errText(e){
+  const m=(e&&e.message)||String(e);
+  if(/failed to fetch|networkerror|load failed/i.test(m))return "Brak połączenia z internetem.";
+  return m;
+}
+function capitalize(t){return t?t.charAt(0).toUpperCase()+t.slice(1):""}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}}
+function compressImage(file,max=900,q=.75){
+  return new Promise((res,rej)=>{
+    const url=URL.createObjectURL(file),img=new Image();
+    img.onload=()=>{
+      const s=Math.min(1,max/Math.max(img.width,img.height)),w=Math.round(img.width*s),h=Math.round(img.height*s);
+      const c=document.createElement("canvas");c.width=w;c.height=h;
+      const ctx=c.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(url);res(c.toDataURL("image/jpeg",q));
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error("Nie udało się odczytać zdjęcia."))};
+    img.src=url;
+  });
+}
 
+/* ---------- logowanie / rejestracja ---------- */
+let authMode = "login";
+function setAuthMode(m){
+  authMode=m;
+  $("tabLogin").classList.toggle("active",m==="login");
+  $("tabRegister").classList.toggle("active",m==="register");
+  $("pass2Input").classList.toggle("hidden",m!=="register");
+  $("passInput").autocomplete=m==="register"?"new-password":"current-password";
+  $("authBtn").textContent=m==="register"?"Załóż konto":"Zaloguj się";
+  $("authHint").textContent=m==="register"?"Konto nie wymaga e-maila, więc hasła nie da się odzyskać. Zapamiętaj je!":"";
+  $("authMsg").textContent="";
+}
+function authError(e){
+  const m=(e&&e.message)||"";
+  if(/invalid login credentials/i.test(m))return "Nieprawidłowy nick lub hasło.";
+  if(/already registered|already been registered/i.test(m))return "Ten nick jest już zajęty.";
+  if(/rate limit|too many/i.test(m))return "Zbyt wiele prób. Spróbuj za chwilę.";
+  if(/email/i.test(m)&&/invalid/i.test(m))return "Serwer odrzucił nick. Zmień EMAIL_DOMAIN na górze pliku index.html.";
+  return errText(e);
+}
+async function submitAuth(){
+  const nick=$("nickInput").value.trim().toLowerCase(),pass=$("passInput").value;
+  const msg=t=>$("authMsg").textContent=t;
+  msg("");
+  if(!/^[a-z0-9_-]{3,20}$/.test(nick))return msg("Nick: 3–20 znaków – małe litery a–z (bez polskich znaków), cyfry, _ lub -.");
+  if(pass.length<6)return msg("Hasło musi mieć co najmniej 6 znaków.");
+  if(authMode==="register"&&pass!==$("pass2Input").value)return msg("Hasła nie są takie same.");
+  $("authBtn").disabled=true;
+  try{
+    const email=nick+"@"+EMAIL_DOMAIN;
+    if(authMode==="register"){
+      const {data,error}=await sb.auth.signUp({email,password:pass,options:{data:{nick}}});
+      if(error)throw error;
+      if(!data.session)msg("Konto utworzone, ale Supabase wymaga potwierdzenia e-maila. Wyłącz opcję „Confirm email” w ustawieniach Authentication.");
+    }else{
+      const {error}=await sb.auth.signInWithPassword({email,password:pass});
+      if(error)throw error;
+    }
+  }catch(e){msg(authError(e))}
+  finally{$("authBtn").disabled=false}
+}
+async function logout(){await sb.auth.signOut()}
+function showAuth(){
+  user=null;cats=[];deck=[];groupsCache=[];
+  $("whoami").textContent="";$("logoutBtn").classList.add("hidden");
+  $("passInput").value="";$("pass2Input").value="";
+  setAuthMode("login");show("authView");
+}
+
+/* ---------- strona główna i grupy ---------- */
+function myNick(){return (user&&user.user_metadata&&user.user_metadata.nick)||"użytkownik"}
+function enterHome(){
+  $("whoami").textContent="👤 "+myNick();
+  $("logoutBtn").classList.remove("hidden");
+  show("homeView");loadGroups();
+}
+function goHome(){show("homeView");loadGroups()}
+async function loadGroups(){
+  const box=$("groupList");
+  const {data,error}=await sb.rpc("my_groups");
+  box.innerHTML="";
+  if(error){const p=document.createElement("p");p.className="muted";p.textContent="Nie udało się wczytać grup: "+errText(error);box.appendChild(p);return}
+  groupsCache=data||[];
+  if(!groupsCache.length){const p=document.createElement("p");p.className="muted";p.textContent="Nie należysz jeszcze do żadnej grupy. Utwórz własną albo dołącz kodem.";box.appendChild(p);return}
+  groupsCache.forEach(g=>{
+    const b=document.createElement("button");b.className="tile";
+    const t=document.createElement("strong");t.textContent=g.name;
+    const badge=document.createElement("span");badge.className="badge";badge.textContent=g.role==="owner"?"Właściciel":"Członek";
+    const meta=document.createElement("div");meta.className="muted";
+    const cc=Number(g.card_count),mc=Number(g.member_count);
+    meta.textContent=`${cc} ${plural(cc,"fiszka","fiszki","fiszek")} · ${mc} ${plural(mc,"członek","członków","członków")}`;
+    b.append(t,badge,meta);b.onclick=()=>openGroup(g);box.appendChild(b);
+  });
+}
+async function createGroup(){
+  const name=$("newGroupName").value.trim();if(!name)return;
+  const {data,error}=await sb.rpc("create_group",{p_name:name});
+  if(error)return alert(errText(error));
+  $("newGroupName").value="";await openGroupById(data.id);
+}
+async function joinGroup(){
+  const code=$("joinCode").value.trim();if(!code)return;
+  const {data,error}=await sb.rpc("join_group",{p_code:code});
+  if(error)return alert(errText(error));
+  $("joinCode").value="";toast("Dołączono do grupy „"+data.name+"”");await openGroupById(data.id);
+}
+async function openGroupById(id){
+  await loadGroups();
+  const g=groupsCache.find(x=>x.id===id);
+  if(g)openGroup(g);
+}
+
+/* ---------- widok fiszek ---------- */
+function openPrivate(){space={type:"private",group:null};enterSpace()}
+function openGroup(g){space={type:"group",group:g};enterSpace()}
+async function enterSpace(){
+  $("spaceTitle").textContent=space.type==="private"?"🔒 Moje fiszki":"👥 "+space.group.name;
+  $("groupBtn").classList.toggle("hidden",space.type!=="group");
+  currentCatId=null;cancelEdit();cats=[];deck=[];
+  $("flashcard").textContent="Ładowanie…";
+  renderCategorySelect();renderList();updateProgress();
+  show("spaceView");
+  await loadSpace();
+}
+function refreshSpace(){loadSpace().then(()=>toast("Odświeżono"))}
+async function loadSpace(){
+  let q=sb.from("categories").select("id,name,cards(id,front,back,image_front,image_back,created_at,progress(skip_rounds))").order("name");
+  q=space.type==="group"?q.eq("group_id",space.group.id):q.is("group_id",null);
+  const {data,error}=await q;
+  if(error){$("flashcard").textContent="Nie udało się wczytać fiszek: "+errText(error);return}
+  cats=data||[];skip={};
+  cats.forEach(c=>{
+    c.cards.sort((a,b)=>a.created_at<b.created_at?-1:1);
+    c.cards.forEach(k=>{skip[k.id]=(k.progress&&k.progress[0]&&k.progress[0].skip_rounds)||0;delete k.progress});
+  });
+  if(!cats.some(c=>c.id===currentCatId))currentCatId=cats[0]?cats[0].id:null;
+  renderCategorySelect();startRound(false);renderList();
+}
+function curCat(){return cats.find(c=>c.id===currentCatId)||null}
+function cardById(id){const c=curCat();return c?c.cards.find(k=>k.id===id):null}
+function renderCategorySelect(){
+  const s=$("categorySelect");s.innerHTML="";
+  cats.forEach(c=>{const o=document.createElement("option");o.value=c.id;o.textContent=c.name;s.appendChild(o)});
+  if(currentCatId)s.value=currentCatId;
+}
+function onCategoryChange(){currentCatId=$("categorySelect").value||null;cancelEdit();startRound(false);renderList()}
+function changeSideMode(){sideMode=$("sideMode").value;localStorage.setItem("sideMode",sideMode);startRound(false)}
+
+async function createCategory(name){
+  const {data,error}=await sb.from("categories").insert({name,owner_id:user.id,group_id:space.type==="group"?space.group.id:null}).select("id,name").single();
+  if(error)throw error;
+  data.cards=[];cats.push(data);cats.sort((a,b)=>a.name.localeCompare(b.name,"pl"));return data;
+}
+async function addCategory(){
+  const name=$("categoryInput").value.trim();if(!name)return;
+  try{
+    const c=await createCategory(name);
+    currentCatId=c.id;$("categoryInput").value="";cancelEdit();
+    renderCategorySelect();startRound(false);renderList();
+  }catch(e){alert(e.code==="23505"?"Taka kategoria już istnieje.":errText(e))}
+}
+async function deleteCategory(){
+  const cat=curCat();if(!cat)return;
+  if(!confirm(`Usunąć kategorię „${cat.name}” wraz ze wszystkimi ${cat.cards.length} fiszkami? Tej operacji nie można cofnąć.`))return;
+  const {data,error}=await sb.from("categories").delete().eq("id",cat.id).select("id");
+  if(error)return alert(errText(error));
+  if(!data.length)return alert("Nie masz uprawnień do usunięcia tej kategorii (może ją usunąć jej autor lub właściciel grupy).");
+  cats=cats.filter(c=>c.id!==cat.id);currentCatId=cats[0]?cats[0].id:null;cancelEdit();
+  renderCategorySelect();startRound(false);renderList();
+}
+
+/* ---------- dodawanie / edycja fiszek ---------- */
+async function saveCard(){
+  const cat=curCat();if(!cat)return alert("Najpierw dodaj kategorię.");
+  const front=capitalize($("frontInput").value.trim()),back=capitalize($("backInput").value.trim());
+  const ff=$("frontImage").files[0],bf=$("backImage").files[0];
+  if(!front&&!ff&&!back&&!bf&&!editCardId)return alert("Wpisz treść lub dodaj zdjęcie.");
+  $("saveCardBtn").disabled=true;
+  try{
+    const imgF=ff?await compressImage(ff):undefined,imgB=bf?await compressImage(bf):undefined;
+    if(editCardId){
+      const patch={front,back};
+      if(imgF!==undefined)patch.image_front=imgF;
+      if(imgB!==undefined)patch.image_back=imgB;
+      const {data,error}=await sb.from("cards").update(patch).eq("id",editCardId).select("id,front,back,image_front,image_back,created_at");
+      if(error)throw error;
+      if(!data.length)throw new Error("Nie udało się zapisać zmian.");
+      const i=cat.cards.findIndex(k=>k.id===editCardId);if(i>=0)cat.cards[i]=data[0];
+      cancelEdit();
+    }else{
+      const {data,error}=await sb.from("cards").insert({category_id:cat.id,front,back,image_front:imgF??null,image_back:imgB??null,created_by:user.id}).select("id,front,back,image_front,image_back,created_at").single();
+      if(error)throw error;
+      cat.cards.push(data);skip[data.id]=0;
+      $("frontInput").value="";$("backInput").value="";$("frontImage").value="";$("backImage").value="";
+    }
+    startRound(false);renderList();
+  }catch(e){alert(errText(e))}
+  finally{$("saveCardBtn").disabled=false}
+}
+function editCard(id){
+  const k=cardById(id);if(!k)return;
+  $("frontInput").value=k.front;$("backInput").value=k.back;$("frontImage").value="";$("backImage").value="";
+  editCardId=id;$("saveCardBtn").textContent="💾 Zapisz zmiany";
+  $("cancelEditBtn").classList.remove("hidden");$("editHint").classList.remove("hidden");
+  $("frontInput").scrollIntoView({behavior:"smooth",block:"center"});
+}
+function cancelEdit(){
+  editCardId=null;$("saveCardBtn").textContent="Dodaj fiszkę";
+  $("cancelEditBtn").classList.add("hidden");$("editHint").classList.add("hidden");
+  $("frontInput").value="";$("backInput").value="";$("frontImage").value="";$("backImage").value="";
+}
+async function removeCard(id){
+  const {data,error}=await sb.from("cards").delete().eq("id",id).select("id");
+  if(error)return alert(errText(error));
+  if(!data.length)return alert("Nie udało się usunąć fiszki.");
+  const cat=curCat();cat.cards=cat.cards.filter(k=>k.id!==id);delete skip[id];
+  if(editCardId===id)cancelEdit();
+  startRound(false);renderList();
+}
+function deleteCurrent(){
+  if(!deck.length||roundFinished||allKnown)return;
+  if(confirm("Usunąć tę fiszkę?"))removeCard(deck[index].id);
+}
+function renderList(){
+  const list=$("list");list.innerHTML="";const cat=curCat();if(!cat)return;
+  cat.cards.forEach(c=>{
+    const div=document.createElement("div");div.className="list-item";
+    const label=document.createElement("span");label.textContent=(c.front||"[zdjęcie]")+" — "+(c.back||"[zdjęcie]");
+    const actions=document.createElement("div");
+    const edit=document.createElement("button");edit.textContent="✏";edit.setAttribute("aria-label","Edytuj fiszkę");edit.onclick=()=>editCard(c.id);
+    const del=document.createElement("button");del.textContent="🗑";del.setAttribute("aria-label","Usuń fiszkę");
+    del.onclick=()=>{if(confirm("Usunąć tę fiszkę?"))removeCard(c.id)};
+    actions.append(edit,del);div.append(label,actions);list.appendChild(div);
+  });
+}
+
+/* ---------- nauka ---------- */
+function updateProgress(){$("progress").textContent=`Postęp: ${knownCount+unknownCount} / ${deck.length}`}
+function persistSkip(rows){
+  sb.from("progress").upsert(rows.map(r=>({user_id:user.id,card_id:r.card_id,skip_rounds:r.skip_rounds})),{onConflict:"user_id,card_id"})
+    .then(({error})=>{if(error)console.warn("Postęp nie został zapisany:",error.message)});
+}
+function startRound(decrement){
+  const cat=curCat();
+  roundFinished=false;allKnown=false;knownCount=0;unknownCount=0;index=0;deck=[];
+  if(cat){
+    if(decrement){
+      const changed=[];
+      cat.cards.forEach(c=>{if((skip[c.id]||0)>0){skip[c.id]--;changed.push({card_id:c.id,skip_rounds:skip[c.id]})}});
+      if(changed.length)persistSkip(changed);
+    }
+    deck=cat.cards.filter(c=>!(skip[c.id]||0)).map(c=>({id:c.id,direction:sideMode==="back"?"reversed":(Math.random()<.5?"normal":"reversed")}));
+    shuffle(deck);
+    if(!deck.length&&cat.cards.length)allKnown=true;
+  }
+  updateProgress();showCard();
+}
+function markKnown(knewIt){
+  if(!deck.length||roundFinished||allKnown)return;
+  const id=deck[index].id;
+  skip[id]=knewIt?3:0;
+  if(knewIt)knownCount++;else unknownCount++;
+  persistSkip([{card_id:id,skip_rounds:skip[id]}]);
+  updateProgress();nextCard();
+}
+function showCard(){
+  const f=$("flashcard");flipped=false;
+  if(!curCat()){f.textContent="Dodaj kategorię, aby zacząć";return}
+  if(allKnown){f.textContent="🎉 Wszystkie fiszki opanowane! Kliknij ➡️, aby zacząć kolejną rundę.";return}
+  if(!deck.length){f.textContent="Brak fiszek";return}
+  renderCardSide();
+}
+function renderCardSide(){
+  const f=$("flashcard"),d=deck[index],card=d&&cardById(d.id);if(!card)return;
+  f.innerHTML="";
+  const normal=d.direction==="normal",isFront=!flipped;
+  const text=isFront?(normal?card.front:card.back):(normal?card.back:card.front);
+  const img=isFront?(normal?card.image_front:card.image_back):(normal?card.image_back:card.image_front);
+  const t=document.createElement("div");t.textContent=text;f.appendChild(t);
+  if(img){const i=document.createElement("img");i.src=img;i.style.maxWidth="100%";i.style.marginTop="10px";i.style.borderRadius="6px";f.appendChild(i)}
+}
+function flipCard(){if(!deck.length||roundFinished||allKnown)return;flipped=!flipped;renderCardSide()}
+function nextCard(){
+  if(roundFinished||allKnown){startRound(true);return}
+  if(!deck.length)return;
+  index++;
+  if(index>=deck.length){
+    const total=knownCount+unknownCount,percent=total?Math.round(knownCount/total*100):0;
+    $("flashcard").innerHTML=`<div style="font-size:20px">🎉 Runda zakończona!<br><br>✅ Wiedziałeś: ${knownCount}<br>❌ Nie wiedziałeś: ${unknownCount}<br>📊 Skuteczność: ${percent}%<br><br>Kliknij ➡️, aby rozpocząć nową rundę</div>`;
+    roundFinished=true;return;
+  }
+  showCard();
+}
+
+/* ---------- eksport / import (format zgodny ze starą wersją) ---------- */
 function exportBackup(){
+  const data={};
+  cats.forEach(c=>{data[c.name]=c.cards.map(k=>({id:k.id,front:k.front,back:k.back,imageFront:k.image_front,imageBack:k.image_back,skipRounds:skip[k.id]||0}))});
   const backup={format:"fiszki-backup",version:1,data,settings:{dark:document.body.classList.contains("dark"),sideMode}};
+  const name=space.type==="private"?"moje_fiszki":"grupa_"+space.group.name.toLowerCase().replace(/[^a-z0-9]+/g,"_");
   const blob=new Blob([JSON.stringify(backup,null,2)],{type:"application/json;charset=utf-8"});
-  const url=URL.createObjectURL(blob),link=document.createElement("a");
-  link.href=url;link.download="moje_fiszki.json";document.body.appendChild(link);link.click();link.remove();
+  const url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download=name+".json";document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 async function importBackup(event){
   const file=event.target.files[0];if(!file)return;
   try{
-    const backup=JSON.parse(await file.text());
-    if(backup.format!=="fiszki-backup"||backup.version!==1||!backup.data||typeof backup.data!=="object"||Array.isArray(backup.data)||!Object.keys(backup.data).length) throw new Error("Nieprawidłowy format kopii zapasowej.");
-    for(const [category,cards] of Object.entries(backup.data)){
-      if(typeof category!=="string"||!category.trim()||!Array.isArray(cards)||!cards.every(c=>c&&typeof c==="object"&&typeof c.front==="string"&&typeof c.back==="string")) throw new Error("Plik zawiera nieprawidłowe dane.");
+    const b=JSON.parse(await file.text());
+    if(b.format!=="fiszki-backup"||b.version!==1||!b.data||typeof b.data!=="object"||Array.isArray(b.data)||!Object.keys(b.data).length)throw new Error("Nieprawidłowy format kopii zapasowej.");
+    for(const [cat,cards] of Object.entries(b.data)){
+      if(!cat.trim()||!Array.isArray(cards)||!cards.every(c=>c&&typeof c==="object"&&typeof c.front==="string"&&typeof c.back==="string"))throw new Error("Plik zawiera nieprawidłowe dane.");
     }
-    const merged=JSON.parse(JSON.stringify(data));let added=0,skipped=0;
-    const signature=c=>JSON.stringify([c.front,c.back,c.imageFront??null,c.imageBack??null]);
-    for(const [category,cards] of Object.entries(backup.data)){
-      if(!Array.isArray(merged[category]))merged[category]=[];
-      const target=merged[category];
-      for(const source of cards){
-        const sourceId=source.id, sig=signature(source);
-        if(target.some(c=>signature(c)===sig&&(String(c.id)===String(sourceId)||String(c.importSourceId)===String(sourceId)))){skipped++;continue}
-        const card={...source,id:sourceId??(Date.now()+Math.random()),front:source.front,back:source.back,imageFront:source.imageFront??null,imageBack:source.imageBack??null,skipRounds:Number(source.skipRounds)||0};
-        if(target.some(c=>String(c.id)===String(card.id))){card.importSourceId=sourceId;card.id=Date.now()+Math.random()}
-        target.push(card);added++;
+    const where=space.type==="private"?"do Twoich prywatnych fiszek":"do grupy „"+space.group.name+"”";
+    if(!confirm("Zaimportować fiszki "+where+"?"))return;
+    toast("Importowanie… to może chwilę potrwać");
+    let added=0,skipped=0;
+    const sig=(f,bk,i1,i2)=>JSON.stringify([f,bk,i1??null,i2??null]);
+    for(const [name,cards] of Object.entries(b.data)){
+      let cat=cats.find(c=>c.name===name.trim())||await createCategory(name.trim());
+      const have=new Set(cat.cards.map(k=>sig(k.front,k.back,k.image_front,k.image_back)));
+      const fresh=[];
+      for(const s of cards){const g=sig(s.front,s.back,s.imageFront,s.imageBack);if(have.has(g)){skipped++;continue}have.add(g);fresh.push(s)}
+      for(let i=0;i<fresh.length;i+=5){
+        const chunk=fresh.slice(i,i+5);
+        const {data,error}=await sb.from("cards").insert(chunk.map(s=>({category_id:cat.id,front:s.front,back:s.back,image_front:s.imageFront??null,image_back:s.imageBack??null,created_by:user.id}))).select("id");
+        if(error)throw error;
+        const prog=[];data.forEach((r,j)=>{const n=Number(chunk[j].skipRounds)||0;if(n>0)prog.push({card_id:r.id,skip_rounds:n})});
+        if(prog.length)persistSkip(prog);
+        added+=chunk.length;
       }
     }
-    localStorage.setItem("fiszki",JSON.stringify(merged));data=merged;
-    if(typeof backup.settings?.dark==="boolean"){document.body.classList.toggle("dark",backup.settings.dark);localStorage.setItem("dark",String(backup.settings.dark))}
-    if(["random","back"].includes(backup.settings?.sideMode)){sideMode=backup.settings.sideMode;localStorage.setItem("sideMode",sideMode);document.getElementById("sideMode").value=sideMode}
-    if(!currentCategory||!data[currentCategory])currentCategory=Object.keys(data)[0]||null;
-    loadCategories();
-    if(currentCategory){categorySelect.value=currentCategory;loadCategory()}else{deck=[];index=0;updateProgress();showCard();renderList()}
-    alert("Import zakończony!\\nDodane fiszki: "+added+"\\nPominięte duplikaty: "+skipped);
-  }catch(error){alert("Nie udało się zaimportować pliku.\\nDotychczasowe fiszki nie zostały zmienione.\\n\\n"+error.message)}
-  finally{event.target.value=""}
+    await loadSpace();
+    alert("Import zakończony!\nDodane fiszki: "+added+"\nPominięte duplikaty: "+skipped);
+  }catch(e){
+    await loadSpace();
+    alert("Import nie został dokończony.\n\n"+errText(e));
+  }finally{event.target.value=""}
 }
 
-function addCategory(){const name=categoryInput.value.trim();if(!name||data[name])return;data[name]=[];currentCategory=name;save();categoryInput.value="";loadCategories();loadCategory()}
-function deleteCategory(){
-  if(!currentCategory||!Object.prototype.hasOwnProperty.call(data,currentCategory))return;
-  const name=currentCategory;
-  const count=Array.isArray(data[name])?data[name].length:0;
-  if(!confirm(`Usunąć kategorię „${name}” wraz ze wszystkimi ${count} fiszkami? Tej operacji nie można cofnąć.`))return;
-  delete data[name];
-  currentCategory=Object.keys(data)[0]||null;
-  if(editIndex!==null){editIndex=null;document.querySelector("button[onclick='addFlashcard()']").textContent="Dodaj fiszkę"}
-  save();loadCategories();
-  if(currentCategory){categorySelect.value=currentCategory;loadCategory()}else{deck=[];index=0;knownCount=0;unknownCount=0;updateProgress();showCard();renderList()}
+/* ---------- ustawienia grupy ---------- */
+function openGroupSettings(){show("groupView");renderGroupSettings();loadMembers()}
+function backToSpace(){show("spaceView")}
+function renderGroupSettings(){
+  const g=space.group,owner=g.role==="owner";
+  $("gName").textContent=g.name;$("gCode").textContent=g.code;
+  $("regenBtn").classList.toggle("hidden",!owner);$("regenHint").classList.toggle("hidden",!owner);
+  $("leaveBtn").classList.toggle("hidden",owner);$("deleteGroupBtn").classList.toggle("hidden",!owner);
 }
-function updateProgress(){const total=deck.length,answered=knownCount+unknownCount;document.getElementById("progress").textContent=`Postęp: ${answered} / ${total}`}
-function loadCategories(){
-  categorySelect.innerHTML="";
-  Object.keys(data).forEach(cat=>{const opt=document.createElement("option");opt.value=cat;opt.textContent=cat;categorySelect.appendChild(opt)});
-  if(currentCategory&&data[currentCategory])categorySelect.value=currentCategory;
-  else if(categorySelect.value){currentCategory=categorySelect.value;loadCategory()}
-  else{currentCategory=null;deck=[];updateProgress();showCard();renderList()}
-}
-function loadCategory(){currentCategory=categorySelect.value||null;resetDeck();renderList()}
-function capitalize(text){if(!text)return "";return text.charAt(0).toUpperCase()+text.slice(1)}
-function addFlashcard(){
-  if(!currentCategory)return;
-  const frontText=capitalize(frontInput.value.trim()),backText=capitalize(backInput.value.trim());
-  const frontFile=frontImage.files[0],backFile=backImage.files[0];
-  if(!frontText&&!frontFile&&!backText&&!backFile){alert("Wpisz treść lub dodaj zdjęcie.");return}
-  const card={id:Date.now(),front:frontText,back:backText,imageFront:null,imageBack:null,skipRounds:0};
-  const readers=[];
-  if(frontFile)readers.push(new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{card.imageFront=r.result;res()};r.onerror=rej;r.readAsDataURL(frontFile)}));
-  if(backFile)readers.push(new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{card.imageBack=r.result;res()};r.onerror=rej;r.readAsDataURL(backFile)}));
-  Promise.all(readers).then(()=>{
-    if(editIndex!==null){data[currentCategory][editIndex]=card;editIndex=null;document.querySelector("button[onclick='addFlashcard()']").textContent="Dodaj fiszkę"}
-    else data[currentCategory].push(card);
-    save();resetDeck();renderList();frontInput.value="";backInput.value="";frontImage.value="";backImage.value="";
-  }).catch(()=>alert("Nie udało się odczytać zdjęcia."));
-}
-function resetDeck(){
-  if(!currentCategory)return;
-  data[currentCategory].forEach(card=>{if(card.skipRounds>0)card.skipRounds--});
-  deck=data[currentCategory].filter(card=>!card.skipRounds).map(card=>({...card,direction:sideMode==="back"?"reversed":(Math.random()<.5?"normal":"reversed")}));
-  shuffle(deck);index=0;knownCount=0;unknownCount=0;roundFinished=false;updateProgress();save();showCard();
-}
-function markKnown(knewIt){
-  if(!deck.length||roundFinished)return;
-  const current=deck[index],original=data[currentCategory].find(c=>c.id===current.id);if(!original)return;
-  if(knewIt){original.skipRounds=3;knownCount++}else{original.skipRounds=0;unknownCount++}
-  save();updateProgress();nextCard();
-}
-function shuffle(arr){for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]]}}
-function showCard(){if(!deck.length){flashcard.textContent="Brak fiszek";return}flipped=false;renderCardSide()}
-function renderCardSide(){
-  const card=deck[index];if(!card)return;flashcard.innerHTML="";
-  const isFront=!flipped,normal=card.direction==="normal";
-  const textContent=isFront?(normal?card.front:card.back):(normal?card.back:card.front);
-  const imgSrc=isFront?(normal?card.imageFront:card.imageBack):(normal?card.imageBack:card.imageFront);
-  const text=document.createElement("div");text.textContent=textContent;flashcard.appendChild(text);
-  if(imgSrc){const img=document.createElement("img");img.src=imgSrc;img.style.maxWidth="100%";img.style.marginTop="10px";img.style.borderRadius="6px";flashcard.appendChild(img)}
-}
-function flipCard(){if(!deck.length)return;flipped=!flipped;renderCardSide()}
-function nextCard(){
-  if(roundFinished){resetDeck();return}
-  index++;
-  if(index>=deck.length){
-    const total=knownCount+unknownCount,percent=total?Math.round(knownCount/total*100):0;
-    flashcard.innerHTML=`<div style="font-size:20px">🎉 Runda zakończona!<br><br>✅ Wiedziałeś: ${knownCount}<br>❌ Nie wiedziałeś: ${unknownCount}<br>📊 Skuteczność: ${percent}%<br><br>Kliknij ➡️, aby rozpocząć nową rundę</div>`;
-    roundFinished=true;return;
-  }
-  showCard();
-}
-function deleteCurrent(){if(!deck.length)return;const card=deck[index];data[currentCategory]=data[currentCategory].filter(c=>c.id!==card.id);save();resetDeck();renderList()}
-function renderList(){
-  list.innerHTML="";if(!currentCategory)return;
-  data[currentCategory].forEach((c,i)=>{
+async function loadMembers(){
+  const box=$("memberList");box.innerHTML="Ładowanie…";
+  const {data,error}=await sb.rpc("get_group_members",{p_group:space.group.id});
+  box.innerHTML="";
+  if(error){box.textContent="Nie udało się wczytać członków: "+errText(error);return}
+  const owner=space.group.role==="owner";
+  data.forEach(m=>{
     const div=document.createElement("div");div.className="list-item";
-    const label=document.createElement("span");label.textContent=(c.front||"[zdjęcie]")+" — "+(c.back||"[zdjęcie]");
-    const actions=document.createElement("div");
-    const edit=document.createElement("button");edit.textContent="✏";edit.setAttribute("aria-label","Edytuj fiszkę");edit.onclick=()=>editCard(i);
-    const del=document.createElement("button");del.textContent="🗑";del.setAttribute("aria-label","Usuń fiszkę");del.onclick=()=>remove(i);
-    actions.append(edit,del);div.append(label,actions);list.appendChild(div);
+    const label=document.createElement("span");label.textContent=m.nick+(m.user_id===user.id?" (Ty)":"");
+    if(m.role==="owner"){const b=document.createElement("span");b.className="badge";b.style.marginLeft="8px";b.textContent="Właściciel";label.appendChild(b)}
+    div.appendChild(label);
+    if(owner&&m.user_id!==user.id){
+      const a=document.createElement("div"),btn=document.createElement("button");
+      btn.textContent="✕";btn.setAttribute("aria-label","Usuń z grupy");btn.onclick=()=>removeMember(m);
+      a.appendChild(btn);div.appendChild(a);
+    }
+    box.appendChild(div);
   });
 }
-function editCard(i){const card=data[currentCategory][i];frontInput.value=card.front;backInput.value=card.back;editIndex=i;document.querySelector("button[onclick='addFlashcard()']").textContent="💾 Zapisz zmiany"}
-function remove(i){data[currentCategory].splice(i,1);save();resetDeck();renderList()}
-loadCategories();
-document.addEventListener("keydown",e=>{if(["INPUT","TEXTAREA","SELECT"].includes(document.activeElement.tagName))return;switch(e.key){case " ":e.preventDefault();flipCard();break;case "ArrowRight":nextCard();break;case "ArrowLeft":if(index>0){index--;showCard()}break;case "Delete":case "Backspace":deleteCurrent();break}});
-if("serviceWorker" in navigator && location.protocol.startsWith("http")){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(err=>console.warn("Service worker:",err)))}
+async function copyCode(){
+  const code=space.group.code;
+  try{await navigator.clipboard.writeText(code);toast("Skopiowano kod")}
+  catch(e){prompt("Skopiuj kod:",code)}
+}
+async function regenCode(){
+  if(!confirm("Zmienić kod grupy? Stary kod przestanie działać."))return;
+  const {data,error}=await sb.rpc("regenerate_group_code",{p_group:space.group.id});
+  if(error)return alert(errText(error));
+  space.group.code=data;$("gCode").textContent=data;toast("Kod zmieniony");
+}
+async function removeMember(m){
+  if(!confirm(`Usunąć użytkownika „${m.nick}” z grupy?`))return;
+  const {data,error}=await sb.from("group_members").delete().eq("group_id",space.group.id).eq("user_id",m.user_id).select("user_id");
+  if(error)return alert(errText(error));
+  if(!data.length)return alert("Nie udało się usunąć członka.");
+  loadMembers();
+}
+async function leaveGroup(){
+  if(!confirm(`Opuścić grupę „${space.group.name}”? Stracisz dostęp do jej fiszek.`))return;
+  const {data,error}=await sb.from("group_members").delete().eq("group_id",space.group.id).eq("user_id",user.id).select("user_id");
+  if(error)return alert(errText(error));
+  if(!data.length)return alert("Nie udało się opuścić grupy.");
+  toast("Opuszczono grupę");goHome();
+}
+async function deleteGroup(){
+  if(!confirm(`Usunąć grupę „${space.group.name}” razem ze WSZYSTKIMI jej fiszkami i członkami? Tej operacji nie można cofnąć.`))return;
+  const {data,error}=await sb.from("groups").delete().eq("id",space.group.id).select("id");
+  if(error)return alert(errText(error));
+  if(!data.length)return alert("Nie udało się usunąć grupy.");
+  toast("Grupa usunięta");goHome();
+}
+
+/* ---------- skróty klawiaturowe ---------- */
+document.addEventListener("keydown",e=>{
+  if($("spaceView").classList.contains("hidden"))return;
+  if(["INPUT","TEXTAREA","SELECT"].includes(document.activeElement.tagName))return;
+  if(e.key===" "){e.preventDefault();flipCard()}
+  else if(e.key==="ArrowRight")nextCard();
+  else if(e.key==="ArrowLeft"&&index>0&&!roundFinished&&!allKnown){index--;showCard()}
+});
+["nickInput","passInput","pass2Input"].forEach(id=>$(id).addEventListener("keydown",e=>{if(e.key==="Enter")submitAuth()}));
+
+/* ---------- start ---------- */
+if(!configured){
+  show("setupView");
+}else if(typeof supabase==="undefined"){
+  show("authView");$("authMsg").textContent="Nie udało się wczytać biblioteki Supabase. Sprawdź połączenie z internetem i odśwież stronę.";
+}else{
+  sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+  sb.auth.onAuthStateChange((event,session)=>{
+    setTimeout(()=>{
+      if(session&&session.user){
+        const isNew=!user||user.id!==session.user.id;
+        user=session.user;
+        if(isNew)enterHome();
+      }else showAuth();
+    },0);
+  });
+}
+if("serviceWorker" in navigator&&location.protocol.startsWith("http")){
+  window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(err=>console.warn("Service worker:",err)));
+}
 </script>
 </body>
 </html>
