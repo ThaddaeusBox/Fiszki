@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Fiszki">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Fiszki</title>
+<style>
+:root{--bg:#f2f2f2;--box:#fff;--text:#000;--card:#e3f2fd;--accent:#2563eb}
+body.dark{--bg:#121212;--box:#1e1e1e;--text:#fff;--card:#263238}
+*{box-sizing:border-box}
+body{font-family:Arial,sans-serif;background:var(--bg);color:var(--text);margin:0;padding: max(12px,env(safe-area-inset-top)) 12px max(18px,env(safe-area-inset-bottom));transition:.3s}
+.container{width:100%;max-width:700px;margin:auto;background:var(--box);padding:clamp(14px,4vw,22px);border-radius:12px}
+h1{text-align:center;font-size:clamp(25px,7vw,32px);margin:12px 0 18px}
+select,input:not([type=file]),button{font:inherit;padding:12px;margin:5px 0;width:100%;background:var(--box);color:var(--text);border:1px solid #888;border-radius:8px;min-height:44px}
+input[type=file]{width:100%;margin:8px 0}
+button{cursor:pointer;touch-action:manipulation}
+button:active{opacity:.75}
+.flashcard{margin:18px 0;padding:24px 16px;background:var(--card);border-radius:12px;text-align:center;font-size:22px;cursor:pointer;min-height:150px;display:flex;flex-direction:column;justify-content:center;align-items:center;overflow-wrap:anywhere}
+.flashcard img{max-height:260px;object-fit:contain}
+.controls{display:flex;gap:10px}
+.controls button{flex:1;min-width:0}
+.list{margin-top:20px}
+.list-item{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#8882;padding:8px;margin:6px 0;border-radius:8px;overflow-wrap:anywhere}
+.list-item>div{display:flex;gap:4px;flex-shrink:0}
+.list-item button{width:auto;min-width:42px;padding:8px}
+.toggle{text-align:right}
+.category-row{display:flex;gap:8px;align-items:center}
+.category-row select{flex:1;min-width:0}
+.icon-button{width:auto!important;min-width:48px!important;padding:10px!important;font-size:22px!important}
+.controls .icon-button{flex:1}
+@media(max-width:480px){.controls{gap:7px}.controls button{font-size:14px;padding:10px 5px}.flashcard{font-size:20px;min-height:170px}.list-item{font-size:14px}.list-item button{min-width:36px}}
+</style>
+</head>
+<body>
+<div class="container">
+    <div class="toggle"><button onclick="toggleDark()">🌙 / ☀</button></div>
+    <h1>📚 Fiszki</h1>
+
+    <div style="margin:15px 0;text-align:center">
+      <label for="sideMode">Tryb wyświetlania fiszek:</label>
+      <select id="sideMode" onchange="changeSideMode()">
+        <option value="random">🔀 Na zmianę (losowa strona)</option>
+        <option value="back">🔄 Zawsze druga strona</option>
+      </select>
+    </div>
+
+    <div id="progress" style="text-align:center;font-weight:bold;margin-bottom:10px">Postęp: 0 / 0</div>
+
+    <div class="controls">
+      <button onclick="exportBackup()">📥 Eksportuj</button>
+      <button onclick="document.getElementById('backupInput').click()">📤 Importuj</button>
+    </div>
+    <input type="file" id="backupInput" accept=".json,application/json" style="display:none" onchange="importBackup(event)">
+
+    <input id="categoryInput" placeholder="Nowa kategoria">
+    <button onclick="addCategory()">Dodaj kategorię</button>
+    <div class="category-row">
+      <select id="categorySelect" onchange="loadCategory()" aria-label="Wybierz kategorię"></select>
+      <button class="icon-button" onclick="deleteCategory()" aria-label="Usuń całą kategorię" title="Usuń całą kategorię">🗑️</button>
+    </div>
+
+    <input id="frontInput" placeholder="Przód fiszki">
+    <input type="file" id="frontImage" accept="image/*">
+    <input id="backInput" placeholder="Tył fiszki">
+    <input type="file" id="backImage" accept="image/*">
+    <button onclick="addFlashcard()">Dodaj fiszkę</button>
+
+    <div class="flashcard" onclick="flipCard()" id="flashcard">Kliknij, aby rozpocząć</div>
+
+    <div class="controls">
+      <button class="icon-button" onclick="nextCard()" aria-label="Następna fiszka" title="Następna fiszka">➡️</button>
+      <button onclick="deleteCurrent()">Usuń</button>
+    </div>
+    <div class="controls">
+      <button class="icon-button" onclick="markKnown(true)" aria-label="Wiedziałem" title="Wiedziałem">👍</button>
+      <button class="icon-button" onclick="markKnown(false)" aria-label="Nie wiedziałem" title="Nie wiedziałem">👎</button>
+    </div>
+    <div class="list" id="list"></div>
+</div>
+<script>
+let data = {};
+try { data = JSON.parse(localStorage.getItem("fiszki")) || {}; } catch(e) { data = {}; }
+let currentCategory=null, deck=[], index=0, flipped=false, editIndex=null, roundFinished=false, knownCount=0, unknownCount=0;
+let sideMode=localStorage.getItem("sideMode") || "random";
+document.getElementById("sideMode").value=sideMode;
+
+if(localStorage.getItem("dark")==="true") document.body.classList.add("dark");
+function toggleDark(){document.body.classList.toggle("dark");localStorage.setItem("dark",document.body.classList.contains("dark"))}
+function save(){localStorage.setItem("fiszki",JSON.stringify(data))}
+function changeSideMode(){sideMode=document.getElementById("sideMode").value;localStorage.setItem("sideMode",sideMode);resetDeck()}
+
+function exportBackup(){
+  const backup={format:"fiszki-backup",version:1,data,settings:{dark:document.body.classList.contains("dark"),sideMode}};
+  const blob=new Blob([JSON.stringify(backup,null,2)],{type:"application/json;charset=utf-8"});
+  const url=URL.createObjectURL(blob),link=document.createElement("a");
+  link.href=url;link.download="moje_fiszki.json";document.body.appendChild(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+async function importBackup(event){
+  const file=event.target.files[0];if(!file)return;
+  try{
+    const backup=JSON.parse(await file.text());
+    if(backup.format!=="fiszki-backup"||backup.version!==1||!backup.data||typeof backup.data!=="object"||Array.isArray(backup.data)||!Object.keys(backup.data).length) throw new Error("Nieprawidłowy format kopii zapasowej.");
+    for(const [category,cards] of Object.entries(backup.data)){
+      if(typeof category!=="string"||!category.trim()||!Array.isArray(cards)||!cards.every(c=>c&&typeof c==="object"&&typeof c.front==="string"&&typeof c.back==="string")) throw new Error("Plik zawiera nieprawidłowe dane.");
+    }
+    const merged=JSON.parse(JSON.stringify(data));let added=0,skipped=0;
+    const signature=c=>JSON.stringify([c.front,c.back,c.imageFront??null,c.imageBack??null]);
+    for(const [category,cards] of Object.entries(backup.data)){
+      if(!Array.isArray(merged[category]))merged[category]=[];
+      const target=merged[category];
+      for(const source of cards){
+        const sourceId=source.id, sig=signature(source);
+        if(target.some(c=>signature(c)===sig&&(String(c.id)===String(sourceId)||String(c.importSourceId)===String(sourceId)))){skipped++;continue}
+        const card={...source,id:sourceId??(Date.now()+Math.random()),front:source.front,back:source.back,imageFront:source.imageFront??null,imageBack:source.imageBack??null,skipRounds:Number(source.skipRounds)||0};
+        if(target.some(c=>String(c.id)===String(card.id))){card.importSourceId=sourceId;card.id=Date.now()+Math.random()}
+        target.push(card);added++;
+      }
+    }
+    localStorage.setItem("fiszki",JSON.stringify(merged));data=merged;
+    if(typeof backup.settings?.dark==="boolean"){document.body.classList.toggle("dark",backup.settings.dark);localStorage.setItem("dark",String(backup.settings.dark))}
+    if(["random","back"].includes(backup.settings?.sideMode)){sideMode=backup.settings.sideMode;localStorage.setItem("sideMode",sideMode);document.getElementById("sideMode").value=sideMode}
+    if(!currentCategory||!data[currentCategory])currentCategory=Object.keys(data)[0]||null;
+    loadCategories();
+    if(currentCategory){categorySelect.value=currentCategory;loadCategory()}else{deck=[];index=0;updateProgress();showCard();renderList()}
+    alert("Import zakończony!\\nDodane fiszki: "+added+"\\nPominięte duplikaty: "+skipped);
+  }catch(error){alert("Nie udało się zaimportować pliku.\\nDotychczasowe fiszki nie zostały zmienione.\\n\\n"+error.message)}
+  finally{event.target.value=""}
+}
+
+function addCategory(){const name=categoryInput.value.trim();if(!name||data[name])return;data[name]=[];currentCategory=name;save();categoryInput.value="";loadCategories();loadCategory()}
+function deleteCategory(){
+  if(!currentCategory||!Object.prototype.hasOwnProperty.call(data,currentCategory))return;
+  const name=currentCategory;
+  const count=Array.isArray(data[name])?data[name].length:0;
+  if(!confirm(`Usunąć kategorię „${name}” wraz ze wszystkimi ${count} fiszkami? Tej operacji nie można cofnąć.`))return;
+  delete data[name];
+  currentCategory=Object.keys(data)[0]||null;
+  if(editIndex!==null){editIndex=null;document.querySelector("button[onclick='addFlashcard()']").textContent="Dodaj fiszkę"}
+  save();loadCategories();
+  if(currentCategory){categorySelect.value=currentCategory;loadCategory()}else{deck=[];index=0;knownCount=0;unknownCount=0;updateProgress();showCard();renderList()}
+}
+function updateProgress(){const total=deck.length,answered=knownCount+unknownCount;document.getElementById("progress").textContent=`Postęp: ${answered} / ${total}`}
+function loadCategories(){
+  categorySelect.innerHTML="";
+  Object.keys(data).forEach(cat=>{const opt=document.createElement("option");opt.value=cat;opt.textContent=cat;categorySelect.appendChild(opt)});
+  if(currentCategory&&data[currentCategory])categorySelect.value=currentCategory;
+  else if(categorySelect.value){currentCategory=categorySelect.value;loadCategory()}
+  else{currentCategory=null;deck=[];updateProgress();showCard();renderList()}
+}
+function loadCategory(){currentCategory=categorySelect.value||null;resetDeck();renderList()}
+function capitalize(text){if(!text)return "";return text.charAt(0).toUpperCase()+text.slice(1)}
+function addFlashcard(){
+  if(!currentCategory)return;
+  const frontText=capitalize(frontInput.value.trim()),backText=capitalize(backInput.value.trim());
+  const frontFile=frontImage.files[0],backFile=backImage.files[0];
+  if(!frontText&&!frontFile&&!backText&&!backFile){alert("Wpisz treść lub dodaj zdjęcie.");return}
+  const card={id:Date.now(),front:frontText,back:backText,imageFront:null,imageBack:null,skipRounds:0};
+  const readers=[];
+  if(frontFile)readers.push(new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{card.imageFront=r.result;res()};r.onerror=rej;r.readAsDataURL(frontFile)}));
+  if(backFile)readers.push(new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{card.imageBack=r.result;res()};r.onerror=rej;r.readAsDataURL(backFile)}));
+  Promise.all(readers).then(()=>{
+    if(editIndex!==null){data[currentCategory][editIndex]=card;editIndex=null;document.querySelector("button[onclick='addFlashcard()']").textContent="Dodaj fiszkę"}
+    else data[currentCategory].push(card);
+    save();resetDeck();renderList();frontInput.value="";backInput.value="";frontImage.value="";backImage.value="";
+  }).catch(()=>alert("Nie udało się odczytać zdjęcia."));
+}
+function resetDeck(){
+  if(!currentCategory)return;
+  data[currentCategory].forEach(card=>{if(card.skipRounds>0)card.skipRounds--});
+  deck=data[currentCategory].filter(card=>!card.skipRounds).map(card=>({...card,direction:sideMode==="back"?"reversed":(Math.random()<.5?"normal":"reversed")}));
+  shuffle(deck);index=0;knownCount=0;unknownCount=0;roundFinished=false;updateProgress();save();showCard();
+}
+function markKnown(knewIt){
+  if(!deck.length||roundFinished)return;
+  const current=deck[index],original=data[currentCategory].find(c=>c.id===current.id);if(!original)return;
+  if(knewIt){original.skipRounds=3;knownCount++}else{original.skipRounds=0;unknownCount++}
+  save();updateProgress();nextCard();
+}
+function shuffle(arr){for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]]}}
+function showCard(){if(!deck.length){flashcard.textContent="Brak fiszek";return}flipped=false;renderCardSide()}
+function renderCardSide(){
+  const card=deck[index];if(!card)return;flashcard.innerHTML="";
+  const isFront=!flipped,normal=card.direction==="normal";
+  const textContent=isFront?(normal?card.front:card.back):(normal?card.back:card.front);
+  const imgSrc=isFront?(normal?card.imageFront:card.imageBack):(normal?card.imageBack:card.imageFront);
+  const text=document.createElement("div");text.textContent=textContent;flashcard.appendChild(text);
+  if(imgSrc){const img=document.createElement("img");img.src=imgSrc;img.style.maxWidth="100%";img.style.marginTop="10px";img.style.borderRadius="6px";flashcard.appendChild(img)}
+}
+function flipCard(){if(!deck.length)return;flipped=!flipped;renderCardSide()}
+function nextCard(){
+  if(roundFinished){resetDeck();return}
+  index++;
+  if(index>=deck.length){
+    const total=knownCount+unknownCount,percent=total?Math.round(knownCount/total*100):0;
+    flashcard.innerHTML=`<div style="font-size:20px">🎉 Runda zakończona!<br><br>✅ Wiedziałeś: ${knownCount}<br>❌ Nie wiedziałeś: ${unknownCount}<br>📊 Skuteczność: ${percent}%<br><br>Kliknij ➡️, aby rozpocząć nową rundę</div>`;
+    roundFinished=true;return;
+  }
+  showCard();
+}
+function deleteCurrent(){if(!deck.length)return;const card=deck[index];data[currentCategory]=data[currentCategory].filter(c=>c.id!==card.id);save();resetDeck();renderList()}
+function renderList(){
+  list.innerHTML="";if(!currentCategory)return;
+  data[currentCategory].forEach((c,i)=>{
+    const div=document.createElement("div");div.className="list-item";
+    const label=document.createElement("span");label.textContent=(c.front||"[zdjęcie]")+" — "+(c.back||"[zdjęcie]");
+    const actions=document.createElement("div");
+    const edit=document.createElement("button");edit.textContent="✏";edit.setAttribute("aria-label","Edytuj fiszkę");edit.onclick=()=>editCard(i);
+    const del=document.createElement("button");del.textContent="🗑";del.setAttribute("aria-label","Usuń fiszkę");del.onclick=()=>remove(i);
+    actions.append(edit,del);div.append(label,actions);list.appendChild(div);
+  });
+}
+function editCard(i){const card=data[currentCategory][i];frontInput.value=card.front;backInput.value=card.back;editIndex=i;document.querySelector("button[onclick='addFlashcard()']").textContent="💾 Zapisz zmiany"}
+function remove(i){data[currentCategory].splice(i,1);save();resetDeck();renderList()}
+loadCategories();
+document.addEventListener("keydown",e=>{if(["INPUT","TEXTAREA","SELECT"].includes(document.activeElement.tagName))return;switch(e.key){case " ":e.preventDefault();flipCard();break;case "ArrowRight":nextCard();break;case "ArrowLeft":if(index>0){index--;showCard()}break;case "Delete":case "Backspace":deleteCurrent();break}});
+if("serviceWorker" in navigator && location.protocol.startsWith("http")){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(err=>console.warn("Service worker:",err)))}
+</script>
+</body>
+</html>
