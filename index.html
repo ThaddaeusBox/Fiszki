@@ -128,6 +128,7 @@ button.danger{border-color:#dc2626;color:#dc2626}
       <label for="sideMode">Tryb wyświetlania fiszek:</label>
       <select id="sideMode" onchange="changeSideMode()">
         <option value="random">🔀 Na zmianę (losowa strona)</option>
+        <option value="front">➡️ Zawsze pierwsza strona</option>
         <option value="back">🔄 Zawsze druga strona</option>
       </select>
     </div>
@@ -476,7 +477,7 @@ function startRound(decrement){
       cat.cards.forEach(c=>{if((skip[c.id]||0)>0){skip[c.id]--;changed.push({card_id:c.id,skip_rounds:skip[c.id]})}});
       if(changed.length)persistSkip(changed);
     }
-    deck=cat.cards.filter(c=>!(skip[c.id]||0)).map(c=>({id:c.id,direction:sideMode==="back"?"reversed":(Math.random()<.5?"normal":"reversed")}));
+    deck=cat.cards.filter(c=>!(skip[c.id]||0)).map(c=>({id:c.id,direction:sideMode==="back"?"reversed":sideMode==="front"?"normal":(Math.random()<.5?"normal":"reversed")}));
     shuffle(deck);
     if(!deck.length&&cat.cards.length)allKnown=true;
   }
