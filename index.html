@@ -49,6 +49,10 @@ button.danger{border-color:#dc2626;color:#dc2626}
 .flashcard img{max-height:260px;object-fit:contain}
 .controls{display:flex;gap:10px}
 .controls button{flex:1;min-width:0}
+.mark-yes{border-color:#16a34a!important;color:#16a34a!important}
+.mark-no{border-color:#dc2626!important;color:#dc2626!important}
+.kbd-hint{margin-top:6px}
+@media(hover:none){.kbd-hint{display:none}}
 .list{margin-top:20px}
 .list-item{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#8882;padding:8px;margin:6px 0;border-radius:8px;overflow-wrap:anywhere}
 .list-item>div{display:flex;gap:4px;flex-shrink:0}
@@ -164,9 +168,10 @@ button.danger{border-color:#dc2626;color:#dc2626}
       <button onclick="deleteCurrent()">Usuń</button>
     </div>
     <div class="controls">
-      <button class="icon-button" onclick="markKnown(true)" aria-label="Wiedziałem" title="Wiedziałem">👍</button>
-      <button class="icon-button" onclick="markKnown(false)" aria-label="Nie wiedziałem" title="Nie wiedziałem">👎</button>
+      <button class="icon-button mark-no" onclick="markKnown(false)" aria-label="Nie wiedziałem" title="Nie wiedziałem (←)">✖</button>
+      <button class="icon-button mark-yes" onclick="markKnown(true)" aria-label="Wiedziałem" title="Wiedziałem (→)">✔</button>
     </div>
+    <div class="muted center kbd-hint">Klawiatura: spacja – odwróć fiszkę · → wiedziałem · ← nie wiedziałem</div>
     <div class="list" id="list"></div>
   </div>
 
@@ -632,8 +637,8 @@ document.addEventListener("keydown",e=>{
   if($("spaceView").classList.contains("hidden"))return;
   if(["INPUT","TEXTAREA","SELECT"].includes(document.activeElement.tagName))return;
   if(e.key===" "){e.preventDefault();flipCard()}
-  else if(e.key==="ArrowRight")nextCard();
-  else if(e.key==="ArrowLeft"&&index>0&&!roundFinished&&!allKnown){index--;showCard()}
+  else if(e.key==="ArrowRight"){e.preventDefault();if(roundFinished||allKnown)nextCard();else markKnown(true)}
+  else if(e.key==="ArrowLeft"){e.preventDefault();if(!roundFinished&&!allKnown)markKnown(false)}
 });
 ["nickInput","passInput","pass2Input"].forEach(id=>$(id).addEventListener("keydown",e=>{if(e.key==="Enter")submitAuth()}));
 
