@@ -53,6 +53,11 @@ button.danger{border-color:#dc2626;color:#dc2626}
 .mark-no{border-color:#dc2626!important;color:#dc2626!important}
 .kbd-hint{margin-top:6px}
 @media(hover:none){.kbd-hint{display:none}}
+.quiz-opt{text-align:left;margin:6px 0}
+.quiz-opt:disabled{opacity:.7}
+.quiz-opt.ok:disabled,.quiz-opt.bad:disabled{opacity:1;color:#fff}
+.quiz-opt.ok{background:#16a34a;border-color:#16a34a}
+.quiz-opt.bad{background:#dc2626;border-color:#dc2626}
 .list{margin-top:20px}
 .list-item{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#8882;padding:8px;margin:6px 0;border-radius:8px;overflow-wrap:anywhere}
 .list-item>div{display:flex;gap:4px;flex-shrink:0}
@@ -137,6 +142,14 @@ button.danger{border-color:#dc2626;color:#dc2626}
       </select>
     </div>
 
+    <div style="margin:15px 0;text-align:center">
+      <label for="studyMode">Sposób nauki:</label>
+      <select id="studyMode" onchange="changeStudyMode()">
+        <option value="cards">🃏 Fiszki (odwracanie)</option>
+        <option value="quiz">📝 Quiz (wybierz poprawną odpowiedź)</option>
+      </select>
+    </div>
+
     <div id="progress" style="text-align:center;font-weight:bold;margin-bottom:10px">Postęp: 0 / 0</div>
 
     <div class="controls">
@@ -162,16 +175,20 @@ button.danger{border-color:#dc2626;color:#dc2626}
     <button id="cancelEditBtn" class="hidden" onclick="cancelEdit()">Anuluj edycję</button>
 
     <div class="flashcard" onclick="flipCard()" id="flashcard">Ładowanie…</div>
+    <div id="quizBox"></div>
 
     <div class="controls">
       <button class="icon-button" onclick="nextCard()" aria-label="Następna fiszka" title="Następna fiszka">➡️</button>
       <button onclick="deleteCurrent()">Usuń</button>
     </div>
+    <div id="flashMarks">
     <div class="controls">
       <button class="icon-button mark-no" onclick="markKnown(false)" aria-label="Nie wiedziałem" title="Nie wiedziałem (←)">✖</button>
       <button class="icon-button mark-yes" onclick="markKnown(true)" aria-label="Wiedziałem" title="Wiedziałem (→)">✔</button>
     </div>
     <div class="muted center kbd-hint">Klawiatura: spacja – odwróć fiszkę · → wiedziałem · ← nie wiedziałem</div>
+    </div>
+    <div class="muted center kbd-hint hidden" id="quizHint">Klawiatura: 1–4 – wybierz odpowiedź · spacja lub → – dalej</div>
     <div class="list" id="list"></div>
   </div>
 
@@ -219,6 +236,17 @@ let deck = [], index = 0, flipped = false, roundFinished = false, allKnown = fal
 let knownCount = 0, unknownCount = 0, editCardId = null;
 let sideMode = localStorage.getItem("sideMode") || "random";
 $("sideMode").value = sideMode;
+let studyMode = localStorage.getItem("studyMode") || "cards";
+$("studyMode").value = studyMode;
+function quizMode(){return studyMode==="quiz"}
+function applyStudyUI(){
+  $("flashMarks").classList.toggle("hidden",quizMode());
+  $("quizHint").classList.toggle("hidden",!quizMode());
+}
+applyStudyUI();
+function changeStudyMode(){studyMode=$("studyMode").value;localStorage.setItem("studyMode",studyMode);applyStudyUI();startRound(false)}
+function ansText(card,dir){return (dir==="normal"?card.back:card.front)||""}
+function hasPrompt(card,dir){return dir==="normal"?!!(card.front||card.image_front):!!(card.back||card.image_back)}
 
 /* ---------- pomocnicze ---------- */
 if (localStorage.getItem("dark") === "true") document.body.classList.add("dark");
@@ -482,14 +510,16 @@ function startRound(decrement){
       cat.cards.forEach(c=>{if((skip[c.id]||0)>0){skip[c.id]--;changed.push({card_id:c.id,skip_rounds:skip[c.id]})}});
       if(changed.length)persistSkip(changed);
     }
-    deck=cat.cards.filter(c=>!(skip[c.id]||0)).map(c=>({id:c.id,direction:sideMode==="back"?"reversed":sideMode==="front"?"normal":(Math.random()<.5?"normal":"reversed")}));
+    const active=cat.cards.filter(c=>!(skip[c.id]||0));
+    deck=active.map(c=>({id:c.id,direction:sideMode==="back"?"reversed":sideMode==="front"?"normal":(Math.random()<.5?"normal":"reversed")}));
+    if(quizMode())deck=deck.filter(d=>{const k=cardById(d.id);return ansText(k,d.direction).trim()&&hasPrompt(k,d.direction)});
     shuffle(deck);
-    if(!deck.length&&cat.cards.length)allKnown=true;
+    if(!active.length&&cat.cards.length)allKnown=true;
   }
   updateProgress();showCard();
 }
 function markKnown(knewIt){
-  if(!deck.length||roundFinished||allKnown)return;
+  if(quizMode()||!deck.length||roundFinished||allKnown)return;
   const id=deck[index].id;
   skip[id]=knewIt?3:0;
   if(knewIt)knownCount++;else unknownCount++;
@@ -497,11 +527,46 @@ function markKnown(knewIt){
   updateProgress();nextCard();
 }
 function showCard(){
-  const f=$("flashcard");flipped=false;
+  const f=$("flashcard");flipped=false;$("quizBox").innerHTML="";
   if(!curCat()){f.textContent="Dodaj kategorię, aby zacząć";return}
   if(allKnown){f.textContent="🎉 Wszystkie fiszki opanowane! Kliknij ➡️, aby zacząć kolejną rundę.";return}
-  if(!deck.length){f.textContent="Brak fiszek";return}
+  if(!deck.length){f.textContent=quizMode()&&curCat().cards.length?"Brak fiszek z tekstem, których da się użyć w quizie":"Brak fiszek";return}
   renderCardSide();
+  if(quizMode())renderQuiz();
+}
+function renderQuiz(){
+  const box=$("quizBox"),d=deck[index],card=d&&cardById(d.id);box.innerHTML="";
+  if(!card)return;
+  if(!d.options){
+    const correct=ansText(card,d.direction).trim(),key=t=>t.trim().toLowerCase();
+    const seen=new Set([key(correct)]),pool=[];
+    curCat().cards.forEach(k=>{
+      if(k.id===card.id)return;
+      const t=ansText(k,d.direction).trim();
+      if(t&&!seen.has(key(t))){seen.add(key(t));pool.push(t)}
+    });
+    shuffle(pool);d.correct=correct;d.options=[correct,...pool.slice(0,3)];shuffle(d.options);
+  }
+  if(d.options.length<2){box.textContent="Quiz potrzebuje co najmniej 2 różnych odpowiedzi w kategorii. Dodaj więcej fiszek.";box.className="muted center";return}
+  box.className="";
+  d.options.forEach((t,i)=>{
+    const b=document.createElement("button");b.className="quiz-opt";b.textContent=(i+1)+". "+t;
+    if(d.picked!==undefined){
+      b.disabled=true;
+      if(t===d.correct)b.classList.add("ok");else if(i===d.picked)b.classList.add("bad");
+    }else b.onclick=()=>answerQuiz(i);
+    box.appendChild(b);
+  });
+}
+function answerQuiz(i){
+  if(!quizMode()||!deck.length||roundFinished||allKnown)return;
+  const d=deck[index];
+  if(!d||!d.options||d.picked!==undefined||i<0||i>=d.options.length)return;
+  d.picked=i;const ok=d.options[i]===d.correct;
+  skip[d.id]=ok?3:0;
+  if(ok)knownCount++;else unknownCount++;
+  persistSkip([{card_id:d.id,skip_rounds:skip[d.id]}]);
+  updateProgress();renderQuiz();
 }
 function renderCardSide(){
   const f=$("flashcard"),d=deck[index],card=d&&cardById(d.id);if(!card)return;
@@ -512,7 +577,7 @@ function renderCardSide(){
   const t=document.createElement("div");t.textContent=text;f.appendChild(t);
   if(img){const i=document.createElement("img");i.src=img;i.style.maxWidth="100%";i.style.marginTop="10px";i.style.borderRadius="6px";f.appendChild(i)}
 }
-function flipCard(){if(!deck.length||roundFinished||allKnown)return;flipped=!flipped;renderCardSide()}
+function flipCard(){if(quizMode()||!deck.length||roundFinished||allKnown)return;flipped=!flipped;renderCardSide()}
 function nextCard(){
   if(roundFinished||allKnown){startRound(true);return}
   if(!deck.length)return;
@@ -636,6 +701,11 @@ async function deleteGroup(){
 document.addEventListener("keydown",e=>{
   if($("spaceView").classList.contains("hidden"))return;
   if(["INPUT","TEXTAREA","SELECT"].includes(document.activeElement.tagName))return;
+  if(quizMode()){
+    if(["1","2","3","4"].includes(e.key))answerQuiz(Number(e.key)-1);
+    else if(e.key===" "||e.key==="ArrowRight"){e.preventDefault();nextCard()}
+    return;
+  }
   if(e.key===" "){e.preventDefault();flipCard()}
   else if(e.key==="ArrowRight"){e.preventDefault();if(roundFinished||allKnown)nextCard();else markKnown(true)}
   else if(e.key==="ArrowLeft"){e.preventDefault();if(!roundFinished&&!allKnown)markKnown(false)}
