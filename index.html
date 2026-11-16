@@ -166,6 +166,8 @@ button.danger{border-color:#dc2626;color:#dc2626}
       <button class="icon-button" onclick="deleteCategory()" aria-label="Usuń całą kategorię" title="Usuń całą kategorię">🗑️</button>
     </div>
 
+    <button id="addToggle" onclick="toggleSection('add')" aria-expanded="false"></button>
+    <div id="addBox" class="hidden">
     <input id="frontInput" placeholder="Przód fiszki">
     <input type="file" id="frontImage" accept="image/*">
     <input id="backInput" placeholder="Tył fiszki">
@@ -173,6 +175,7 @@ button.danger{border-color:#dc2626;color:#dc2626}
     <div class="muted hidden" id="editHint">Edytujesz fiszkę. Zdjęcia zostaną bez zmian, jeśli nie wybierzesz nowych.</div>
     <button id="saveCardBtn" onclick="saveCard()">Dodaj fiszkę</button>
     <button id="cancelEditBtn" class="hidden" onclick="cancelEdit()">Anuluj edycję</button>
+    </div>
 
     <div class="flashcard" onclick="flipCard()" id="flashcard">Ładowanie…</div>
     <div id="quizBox"></div>
@@ -189,7 +192,8 @@ button.danger{border-color:#dc2626;color:#dc2626}
     <div class="muted center kbd-hint">Klawiatura: spacja – odwróć fiszkę · → wiedziałem · ← nie wiedziałem</div>
     </div>
     <div class="muted center kbd-hint hidden" id="quizHint">Klawiatura: 1–4 – wybierz odpowiedź · spacja lub → – dalej</div>
-    <div class="list" id="list"></div>
+    <button id="listToggle" onclick="toggleSection('list')" aria-expanded="false" style="margin-top:20px"></button>
+    <div class="list hidden" id="list" style="margin-top:6px"></div>
   </div>
 
   <!-- ===== USTAWIENIA GRUPY ===== -->
@@ -239,6 +243,20 @@ $("sideMode").value = sideMode;
 let studyMode = localStorage.getItem("studyMode") || "cards";
 $("studyMode").value = studyMode;
 function quizMode(){return studyMode==="quiz"}
+const sectionOpen={add:false,list:false};
+function setSection(name,open){
+  sectionOpen[name]=open;
+  const box=$(name==="add"?"addBox":"list");
+  box.classList.toggle("hidden",!open);
+  $(name==="add"?"addToggle":"listToggle").setAttribute("aria-expanded",open);
+  updateToggleLabels();
+}
+function toggleSection(name){setSection(name,!sectionOpen[name])}
+function updateToggleLabels(){
+  const cat=curCat(),n=cat?cat.cards.length:0;
+  $("addToggle").textContent=(editCardId?"✏️ Edycja fiszki ":"➕ Dodaj fiszkę ")+(sectionOpen.add?"▴":"▾");
+  $("listToggle").textContent=`📋 Lista fiszek (${n}) `+(sectionOpen.list?"▴":"▾");
+}
 function applyStudyUI(){
   $("flashMarks").classList.toggle("hidden",quizMode());
   $("quizHint").classList.toggle("hidden",!quizMode());
@@ -377,7 +395,7 @@ function openGroup(g){space={type:"group",group:g};enterSpace()}
 async function enterSpace(){
   $("spaceTitle").textContent=space.type==="private"?"🔒 Moje fiszki":"👥 "+space.group.name;
   $("groupBtn").classList.toggle("hidden",space.type!=="group");
-  currentCatId=null;cancelEdit();cats=[];deck=[];
+  currentCatId=null;cancelEdit();cats=[];deck=[];setSection("add",false);setSection("list",false);
   $("flashcard").textContent="Ładowanie…";
   renderCategorySelect();renderList();updateProgress();
   show("spaceView");
@@ -461,12 +479,12 @@ async function saveCard(){
 function editCard(id){
   const k=cardById(id);if(!k)return;
   $("frontInput").value=k.front;$("backInput").value=k.back;$("frontImage").value="";$("backImage").value="";
-  editCardId=id;$("saveCardBtn").textContent="💾 Zapisz zmiany";
+  editCardId=id;setSection("add",true);$("saveCardBtn").textContent="💾 Zapisz zmiany";
   $("cancelEditBtn").classList.remove("hidden");$("editHint").classList.remove("hidden");
   $("frontInput").scrollIntoView({behavior:"smooth",block:"center"});
 }
 function cancelEdit(){
-  editCardId=null;$("saveCardBtn").textContent="Dodaj fiszkę";
+  editCardId=null;updateToggleLabels();$("saveCardBtn").textContent="Dodaj fiszkę";
   $("cancelEditBtn").classList.add("hidden");$("editHint").classList.add("hidden");
   $("frontInput").value="";$("backInput").value="";$("frontImage").value="";$("backImage").value="";
 }
@@ -483,6 +501,7 @@ function deleteCurrent(){
   if(confirm("Usunąć tę fiszkę?"))removeCard(deck[index].id);
 }
 function renderList(){
+  updateToggleLabels();
   const list=$("list");list.innerHTML="";const cat=curCat();if(!cat)return;
   cat.cards.forEach(c=>{
     const div=document.createElement("div");div.className="list-item";
