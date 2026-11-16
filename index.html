@@ -152,29 +152,30 @@ button.danger{border-color:#dc2626;color:#dc2626}
 
     <div id="progress" style="text-align:center;font-weight:bold;margin-bottom:10px">Postęp: 0 / 0</div>
 
-    <div class="controls">
-      <button onclick="exportBackup()">📥 Eksportuj</button>
-      <button onclick="document.getElementById('backupInput').click()">📤 Importuj</button>
-      <button onclick="refreshSpace()" aria-label="Odśwież" title="Odśwież">🔄</button>
-    </div>
-    <input type="file" id="backupInput" accept=".json,application/json" style="display:none" onchange="importBackup(event)">
-
-    <input id="categoryInput" placeholder="Nowa kategoria">
-    <button onclick="addCategory()">Dodaj kategorię</button>
     <div class="category-row">
       <select id="categorySelect" onchange="onCategoryChange()" aria-label="Wybierz kategorię"></select>
       <button class="icon-button" onclick="deleteCategory()" aria-label="Usuń całą kategorię" title="Usuń całą kategorię">🗑️</button>
     </div>
 
-    <button id="addToggle" onclick="toggleSection('add')" aria-expanded="false"></button>
+    <button id="addToggle" onclick="toggleSection('add')" aria-expanded="false" style="margin-top:12px"></button>
     <div id="addBox" class="hidden">
-    <input id="frontInput" placeholder="Przód fiszki">
-    <input type="file" id="frontImage" accept="image/*">
-    <input id="backInput" placeholder="Tył fiszki">
-    <input type="file" id="backImage" accept="image/*">
-    <div class="muted hidden" id="editHint">Edytujesz fiszkę. Zdjęcia zostaną bez zmian, jeśli nie wybierzesz nowych.</div>
-    <button id="saveCardBtn" onclick="saveCard()">Dodaj fiszkę</button>
-    <button id="cancelEditBtn" class="hidden" onclick="cancelEdit()">Anuluj edycję</button>
+      <div class="controls">
+        <button onclick="exportBackup()">📥 Eksportuj</button>
+        <button onclick="document.getElementById('backupInput').click()">📤 Importuj</button>
+        <button onclick="refreshSpace()" aria-label="Odśwież" title="Odśwież">🔄</button>
+      </div>
+      <input type="file" id="backupInput" accept=".json,application/json" style="display:none" onchange="importBackup(event)">
+
+      <input id="categoryInput" placeholder="Nowa kategoria">
+      <button onclick="addCategory()">Dodaj kategorię</button>
+
+      <input id="frontInput" placeholder="Przód fiszki">
+      <input type="file" id="frontImage" accept="image/*">
+      <input id="backInput" placeholder="Tył fiszki">
+      <input type="file" id="backImage" accept="image/*">
+      <div class="muted hidden" id="editHint">Edytujesz fiszkę. Zdjęcia zostaną bez zmian, jeśli nie wybierzesz nowych.</div>
+      <button id="saveCardBtn" onclick="saveCard()">Dodaj fiszkę</button>
+      <button id="cancelEditBtn" class="hidden" onclick="cancelEdit()">Anuluj edycję</button>
     </div>
 
     <div class="flashcard" onclick="flipCard()" id="flashcard">Ładowanie…</div>
@@ -254,7 +255,7 @@ function setSection(name,open){
 function toggleSection(name){setSection(name,!sectionOpen[name])}
 function updateToggleLabels(){
   const cat=curCat(),n=cat?cat.cards.length:0;
-  $("addToggle").textContent=(editCardId?"✏️ Edycja fiszki ":"➕ Dodaj fiszkę ")+(sectionOpen.add?"▴":"▾");
+  $("addToggle").textContent=(editCardId?"✏️ Edycja fiszki ":"⚙️ Zarządzaj fiszkami ")+(sectionOpen.add?"▴":"▾");
   $("listToggle").textContent=`📋 Lista fiszek (${n}) `+(sectionOpen.list?"▴":"▾");
 }
 function applyStudyUI(){
